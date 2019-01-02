@@ -1,0 +1,17 @@
+{
+  "name": "ractor-remotedev",
+  "version": "0.0.3",
+  "description": "Remote debugging for ractor architecture.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "corol",
+  "license": "MIT",
+  "dependencies": {
+    "remotedev": "^0.2.9"
+  },
+  "peerDependencies": {
+    "ractor": "^1.1.5"
+  }
+}
