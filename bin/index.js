@@ -22,6 +22,26 @@ var __values = (this && this.__values) || function (o) {
         }
     };
 };
+var __read = (this && this.__read) || function (o, n) {
+    var m = typeof Symbol === "function" && o[Symbol.iterator];
+    if (!m) return o;
+    var i = m.call(o), r, ar = [], e;
+    try {
+        while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+    }
+    catch (error) { e = { error: error }; }
+    finally {
+        try {
+            if (r && !r.done && (m = i["return"])) m.call(i);
+        }
+        finally { if (e) throw e.error; }
+    }
+    return ar;
+};
+var __spread = (this && this.__spread) || function () {
+    for (var ar = [], i = 0; i < arguments.length; i++) ar = ar.concat(__read(arguments[i]));
+    return ar;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 var ractor_1 = require("ractor");
 var remotedev_1 = require("remotedev");
@@ -36,27 +56,61 @@ function createRemoteDevStore(options) {
                 this.remotedev.send(action.type ? action.type : "update", action.payload);
             }
             if (isClassAction(action)) {
-                this.remotedev.send(Object.getPrototypeOf(action).constructor.name, genStateTree(this.context.system));
+                this.remotedev.send({ type: Object.getPrototypeOf(action).constructor.name, payload: action }, this.genStateTree());
             }
+        };
+        RemoteDevStore.prototype.genStateTree = function () {
+            var e_1, _a;
+            var stores = this.context.system.getRoot().getContext().children;
+            var stateTree = {};
+            try {
+                for (var stores_1 = __values(stores), stores_1_1 = stores_1.next(); !stores_1_1.done; stores_1_1 = stores_1.next()) {
+                    var store = stores_1_1.value;
+                    var instance = store[1].getInstance();
+                    stateTree[store[0]] = instance.state;
+                }
+            }
+            catch (e_1_1) { e_1 = { error: e_1_1 }; }
+            finally {
+                try {
+                    if (stores_1_1 && !stores_1_1.done && (_a = stores_1.return)) _a.call(stores_1);
+                }
+                finally { if (e_1) throw e_1.error; }
+            }
+            return stateTree;
         };
         RemoteDevStore.prototype.preStart = function () {
             var _this = this;
             this.remotedev = remotedev_1.connectViaExtension(options);
             this.context.system.eventStream.on("**", this.eventHandler.bind(this));
             this.connection = this.remotedev.subscribe(function (message) {
-                var state = remotedev_1.extractState(message);
-                if (state) {
-                    Object.keys(state).forEach(function (storeName) {
-                        var ref = _this.context.system.getRoot().getContext().child(storeName);
-                        if (ref) {
-                            var store = ref.getInstance();
-                            store.replaceState(state[storeName]);
-                        }
-                    });
+                // jump into
+                if (message.type === "DISPATCH") {
+                    var state_1 = remotedev_1.extractState(message);
+                    if (state_1) {
+                        Object.keys(state_1).forEach(function (storeName) {
+                            var ref = _this.context.system.getRoot().getContext().child(storeName);
+                            if (ref) {
+                                var store = ref.getInstance();
+                                store.replaceState(state_1[storeName]);
+                            }
+                        });
+                    }
+                }
+                // devtools triggers action
+                if (message.type === "ACTION") {
+                    var actionCreators = options["actionCreators"];
+                    if (actionCreators) {
+                        var type = message.payload.name;
+                        var payload = message.payload.args;
+                        var selected = message.payload.selected;
+                        var selectedClass = Array.isArray(actionCreators) ? actionCreators[selected] : actionCreators[type];
+                        var ractorAction = new (selectedClass.bind.apply(selectedClass, __spread([void 0], payload)))();
+                        _this.context.system.dispatch(ractorAction);
+                    }
                 }
             });
-            this.remotedev.send("init");
-            this.remotedev.send("ready", genStateTree(this.context.system));
+            this.remotedev.init(this.genStateTree());
         };
         RemoteDevStore.prototype.postStop = function () {
             this.context.system.eventStream.off("**", this.eventHandler.bind(this));
@@ -69,26 +123,6 @@ function createRemoteDevStore(options) {
     }(ractor_1.Store));
 }
 exports.createRemoteDevStore = createRemoteDevStore;
-function genStateTree(system) {
-    var e_1, _a;
-    var stores = system.getRoot().getContext().children;
-    var stateTree = {};
-    try {
-        for (var stores_1 = __values(stores), stores_1_1 = stores_1.next(); !stores_1_1.done; stores_1_1 = stores_1.next()) {
-            var store = stores_1_1.value;
-            var instance = store[1].getInstance();
-            stateTree[store[0]] = instance.state;
-        }
-    }
-    catch (e_1_1) { e_1 = { error: e_1_1 }; }
-    finally {
-        try {
-            if (stores_1_1 && !stores_1_1.done && (_a = stores_1.return)) _a.call(stores_1);
-        }
-        finally { if (e_1) throw e_1.error; }
-    }
-    return stateTree;
-}
 function isPlainObject(obj) {
     if (typeof obj !== 'object' || obj === null)
         return false;

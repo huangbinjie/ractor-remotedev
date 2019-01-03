@@ -1,6 +1,6 @@
 {
   "name": "ractor-remotedev",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Remote debugging for ractor architecture.",
   "main": "bin/index.js",
   "scripts": {
