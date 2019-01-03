@@ -1,45 +1,47 @@
 import { Store, System } from "ractor"
 import { connectViaExtension, extractState } from "remotedev"
 
-export class RemoteDevStore extends Store<any> {
-  remotedev: any
-  connection: any
+export function createRemoteDevStore(options: { [key: string]: any }): new () => Store<any> {
+  return class RemoteDevStore extends Store<any> {
+    remotedev: any
+    connection: any
 
-  eventHandler(action: any) {
-    if (isPlainObject(action)) {
-      this.remotedev.send(action.type ? action.type : "update", action.payload)
-    }
-
-    if (isClassAction(action)) {
-      this.remotedev.send(Object.getPrototypeOf(action).constructor.name, genStateTree(this.context.system))
-    }
-  }
-  preStart() {
-    this.remotedev = connectViaExtension()
-    this.context.system.eventStream.on("**", this.eventHandler.bind(this))
-
-    this.connection = this.remotedev.subscribe((message: any) => {
-      const state = extractState(message)
-      if (state) {
-        Object.keys(state).forEach(storeName => {
-          const ref = this.context.system.getRoot().getContext().child(storeName)
-          if (ref) {
-            const store = ref.getInstance() as Store<any>
-            store.replaceState(state[storeName])
-          }
-        })
+    eventHandler(action: any) {
+      if (isPlainObject(action)) {
+        this.remotedev.send(action.type ? action.type : "update", action.payload)
       }
-    })
 
-    this.remotedev.send("init")
-    this.remotedev.send("ready", genStateTree(this.context.system))
-  }
-  postStop() {
-    this.context.system.eventStream.off("**", this.eventHandler.bind(this))
-    this.connection.unsubscribe()
-  }
-  createReceive() {
-    return this.receiveBuilder().build()
+      if (isClassAction(action)) {
+        this.remotedev.send(Object.getPrototypeOf(action).constructor.name, genStateTree(this.context.system))
+      }
+    }
+    preStart() {
+      this.remotedev = connectViaExtension(options)
+      this.context.system.eventStream.on("**", this.eventHandler.bind(this))
+
+      this.connection = this.remotedev.subscribe((message: any) => {
+        const state = extractState(message)
+        if (state) {
+          Object.keys(state).forEach(storeName => {
+            const ref = this.context.system.getRoot().getContext().child(storeName)
+            if (ref) {
+              const store = ref.getInstance() as Store<any>
+              store.replaceState(state[storeName])
+            }
+          })
+        }
+      })
+
+      this.remotedev.send("init")
+      this.remotedev.send("ready", genStateTree(this.context.system))
+    }
+    postStop() {
+      this.context.system.eventStream.off("**", this.eventHandler.bind(this))
+      this.connection.unsubscribe()
+    }
+    createReceive() {
+      return this.receiveBuilder().build()
+    }
   }
 }
 

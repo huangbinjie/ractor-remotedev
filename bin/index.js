@@ -25,48 +25,50 @@ var __values = (this && this.__values) || function (o) {
 Object.defineProperty(exports, "__esModule", { value: true });
 var ractor_1 = require("ractor");
 var remotedev_1 = require("remotedev");
-var RemoteDevStore = /** @class */ (function (_super) {
-    __extends(RemoteDevStore, _super);
-    function RemoteDevStore() {
-        return _super !== null && _super.apply(this, arguments) || this;
-    }
-    RemoteDevStore.prototype.eventHandler = function (action) {
-        if (isPlainObject(action)) {
-            this.remotedev.send(action.type ? action.type : "update", action.payload);
+function createRemoteDevStore(options) {
+    return /** @class */ (function (_super) {
+        __extends(RemoteDevStore, _super);
+        function RemoteDevStore() {
+            return _super !== null && _super.apply(this, arguments) || this;
         }
-        if (isClassAction(action)) {
-            this.remotedev.send(Object.getPrototypeOf(action).constructor.name, genStateTree(this.context.system));
-        }
-    };
-    RemoteDevStore.prototype.preStart = function () {
-        var _this = this;
-        this.remotedev = remotedev_1.connectViaExtension();
-        this.context.system.eventStream.on("**", this.eventHandler.bind(this));
-        this.connection = this.remotedev.subscribe(function (message) {
-            var state = remotedev_1.extractState(message);
-            if (state) {
-                Object.keys(state).forEach(function (storeName) {
-                    var ref = _this.context.system.getRoot().getContext().child(storeName);
-                    if (ref) {
-                        var store = ref.getInstance();
-                        store.replaceState(state[storeName]);
-                    }
-                });
+        RemoteDevStore.prototype.eventHandler = function (action) {
+            if (isPlainObject(action)) {
+                this.remotedev.send(action.type ? action.type : "update", action.payload);
             }
-        });
-        this.remotedev.send("init");
-        this.remotedev.send("ready", genStateTree(this.context.system));
-    };
-    RemoteDevStore.prototype.postStop = function () {
-        this.context.system.eventStream.off("**", this.eventHandler.bind(this));
-        this.connection.unsubscribe();
-    };
-    RemoteDevStore.prototype.createReceive = function () {
-        return this.receiveBuilder().build();
-    };
-    return RemoteDevStore;
-}(ractor_1.Store));
-exports.RemoteDevStore = RemoteDevStore;
+            if (isClassAction(action)) {
+                this.remotedev.send(Object.getPrototypeOf(action).constructor.name, genStateTree(this.context.system));
+            }
+        };
+        RemoteDevStore.prototype.preStart = function () {
+            var _this = this;
+            this.remotedev = remotedev_1.connectViaExtension(options);
+            this.context.system.eventStream.on("**", this.eventHandler.bind(this));
+            this.connection = this.remotedev.subscribe(function (message) {
+                var state = remotedev_1.extractState(message);
+                if (state) {
+                    Object.keys(state).forEach(function (storeName) {
+                        var ref = _this.context.system.getRoot().getContext().child(storeName);
+                        if (ref) {
+                            var store = ref.getInstance();
+                            store.replaceState(state[storeName]);
+                        }
+                    });
+                }
+            });
+            this.remotedev.send("init");
+            this.remotedev.send("ready", genStateTree(this.context.system));
+        };
+        RemoteDevStore.prototype.postStop = function () {
+            this.context.system.eventStream.off("**", this.eventHandler.bind(this));
+            this.connection.unsubscribe();
+        };
+        RemoteDevStore.prototype.createReceive = function () {
+            return this.receiveBuilder().build();
+        };
+        return RemoteDevStore;
+    }(ractor_1.Store));
+}
+exports.createRemoteDevStore = createRemoteDevStore;
 function genStateTree(system) {
     var e_1, _a;
     var stores = system.getRoot().getContext().children;
