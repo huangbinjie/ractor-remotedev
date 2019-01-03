@@ -1,8 +1,11 @@
-import { Store } from "ractor"
+import { Store, System } from "ractor"
 import { connectViaExtension, extractState } from "remotedev"
 
-export class RemoteDevStore extends Store {
-  eventHandler(action) {
+export class RemoteDevStore extends Store<any> {
+  remotedev: any
+  connection: any
+
+  eventHandler(action: any) {
     if (isPlainObject(action)) {
       this.remotedev.send(action.type ? action.type : "update", action.payload)
     }
@@ -15,12 +18,15 @@ export class RemoteDevStore extends Store {
     this.remotedev = connectViaExtension()
     this.context.system.eventStream.on("**", this.eventHandler.bind(this))
 
-    this.connection = this.remotedev.subscribe(message => {
+    this.connection = this.remotedev.subscribe((message: any) => {
       const state = extractState(message)
       if (state) {
         Object.keys(state).forEach(storeName => {
-          const store = this.context.system.getRoot().getContext().child(storeName).getInstance()
-          store.replaceState(state[storeName])
+          const ref = this.context.system.getRoot().getContext().child(storeName)
+          if (ref) {
+            const store = ref.getInstance() as Store<any>
+            store.replaceState(state[storeName])
+          }
         })
       }
     })
@@ -37,17 +43,17 @@ export class RemoteDevStore extends Store {
   }
 }
 
-function genStateTree(system) {
+function genStateTree(system: System) {
   const stores = system.getRoot().getContext().children
-  const stateTree = {}
+  const stateTree: { [key: string]: any } = {}
   for (let store of stores) {
-    const instance = store[1].getInstance()
+    const instance = store[1].getInstance() as Store<any>
     stateTree[store[0]] = instance.state
   }
   return stateTree
 }
 
-function isPlainObject(obj) {
+function isPlainObject(obj: any) {
   if (typeof obj !== 'object' || obj === null) return false
 
   let proto = obj
@@ -58,7 +64,7 @@ function isPlainObject(obj) {
   return Object.getPrototypeOf(obj) === proto
 }
 
-function isClassAction(obj) {
+function isClassAction(obj: any) {
   if (typeof obj !== 'object' || obj === null) return false
 
   return Object.getPrototypeOf(obj) !== Object.prototype
