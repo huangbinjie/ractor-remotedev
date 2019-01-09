@@ -1,11 +1,11 @@
 {
   "name": "ractor-remotedev",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Remote debugging for ractor architecture.",
   "main": "bin/index.js",
   "scripts": {
-    "build": "tsc",
-    "prepare": "rm -fr bin & npm run build"
+    "build": "rm -fr bin & tsc",
+    "prepare": "npm run build"
   },
   "author": "corol",
   "license": "MIT",
@@ -13,6 +13,6 @@
     "remotedev": "^0.2.9"
   },
   "peerDependencies": {
-    "ractor": "^1.1.5"
+    "ractor": "^1.1.7"
   }
 }

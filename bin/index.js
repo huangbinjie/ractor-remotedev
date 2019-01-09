@@ -52,12 +52,7 @@ function createRemoteDevStore(options) {
             return _super !== null && _super.apply(this, arguments) || this;
         }
         RemoteDevStore.prototype.eventHandler = function (action) {
-            if (isPlainObject(action)) {
-                this.remotedev.send(action.type ? action.type : "update", action.payload);
-            }
-            if (isClassAction(action)) {
-                this.remotedev.send({ type: Object.getPrototypeOf(action).constructor.name, payload: action }, this.genStateTree());
-            }
+            this.remotedev.send(action.type ? action.type : "update", action.payload);
         };
         RemoteDevStore.prototype.genStateTree = function () {
             var e_1, _a;
@@ -81,6 +76,9 @@ function createRemoteDevStore(options) {
         };
         RemoteDevStore.prototype.preStart = function () {
             var _this = this;
+            if (!this.context.system.serialize) {
+                console.warn("Not that if you dont set system option `serialize` to be true, you can not use custom action.");
+            }
             this.remotedev = remotedev_1.connectViaExtension(options);
             this.context.system.eventStream.on("**", this.eventHandler.bind(this));
             this.connection = this.remotedev.subscribe(function (message) {
@@ -99,14 +97,30 @@ function createRemoteDevStore(options) {
                 }
                 // devtools triggers action
                 if (message.type === "ACTION") {
-                    var actionCreators = options["actionCreators"];
-                    if (actionCreators) {
+                    if (typeof message.payload === "string") {
+                        if (_this.context.system.serialize) {
+                            try {
+                                var action = JSON.parse(message.payload);
+                                _this.context.system.eventStream.emit("**", action);
+                            }
+                            catch (_a) {
+                                throw TypeError("Action muse be plain object and should contain type and payload fields.");
+                            }
+                        }
+                    }
+                    else {
+                        var actionCreators = options["actionCreators"];
                         var type = message.payload.name;
                         var payload = message.payload.args;
                         var selected = message.payload.selected;
-                        var selectedClass = Array.isArray(actionCreators) ? actionCreators[selected] : actionCreators[type];
-                        var ractorAction = new (selectedClass.bind.apply(selectedClass, __spread([void 0], payload)))();
-                        _this.context.system.dispatch(ractorAction);
+                        if (_this.context.system.serialize) {
+                            _this.context.system.eventStream.emit("**", { type: type, payload: payload });
+                        }
+                        else {
+                            var selectedClass = Array.isArray(actionCreators) ? actionCreators[selected] : actionCreators[type];
+                            var ractorAction = new (selectedClass.bind.apply(selectedClass, __spread([void 0], payload)))();
+                            _this.context.system.dispatch(ractorAction);
+                        }
                     }
                 }
             });
@@ -123,17 +137,3 @@ function createRemoteDevStore(options) {
     }(ractor_1.Store));
 }
 exports.createRemoteDevStore = createRemoteDevStore;
-function isPlainObject(obj) {
-    if (typeof obj !== 'object' || obj === null)
-        return false;
-    var proto = obj;
-    while (Object.getPrototypeOf(proto) !== null) {
-        proto = Object.getPrototypeOf(proto);
-    }
-    return Object.getPrototypeOf(obj) === proto;
-}
-function isClassAction(obj) {
-    if (typeof obj !== 'object' || obj === null)
-        return false;
-    return Object.getPrototypeOf(obj) !== Object.prototype;
-}

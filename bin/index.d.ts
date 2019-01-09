@@ -1,4 +1,9 @@
 import { Store } from "ractor";
-export declare function createRemoteDevStore(options: {
+declare type Options = {
     [key: string]: any;
-}): new () => Store<any>;
+    actionCreators: Array<new (...args: any[]) => any> | {
+        [key: string]: new (...args: any[]) => any;
+    };
+};
+export declare function createRemoteDevStore(options: Options): new () => Store<any>;
+export {};

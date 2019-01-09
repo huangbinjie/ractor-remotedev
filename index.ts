@@ -1,4 +1,4 @@
-import { Store, System } from "ractor"
+import { Store } from "ractor"
 import { connectViaExtension, extractState } from "remotedev"
 
 type Message = {
@@ -9,21 +9,15 @@ type Message = {
 }
 type Options = {
   [key: string]: any,
-  actionCreators: Array<new () => any> | { [key: string]: new () => any }
+  actionCreators: Array<new (...args: any[]) => any> | { [key: string]: new (...args: any[]) => any }
 }
-export function createRemoteDevStore(options: { [key: string]: any }): new () => Store<any> {
+export function createRemoteDevStore(options: Options): new () => Store<any> {
   return class RemoteDevStore extends Store<any> {
     remotedev: any
     connection: any
 
     eventHandler(action: any) {
-      if (isPlainObject(action)) {
-        this.remotedev.send(action.type ? action.type : "update", action.payload)
-      }
-
-      if (isClassAction(action)) {
-        this.remotedev.send({ type: Object.getPrototypeOf(action).constructor.name, payload: action }, this.genStateTree())
-      }
+      this.remotedev.send(action.type ? action.type : "update", action.payload)
     }
     genStateTree() {
       const stores = this.context.system.getRoot().getContext().children
@@ -35,6 +29,9 @@ export function createRemoteDevStore(options: { [key: string]: any }): new () =>
       return stateTree
     }
     preStart() {
+      if (!this.context.system.serialize) {
+        console.warn("Not that if you dont set system option `serialize` to be true, you can not use custom action.")
+      }
       this.remotedev = connectViaExtension(options)
       this.context.system.eventStream.on("**", this.eventHandler.bind(this))
 
@@ -55,14 +52,27 @@ export function createRemoteDevStore(options: { [key: string]: any }): new () =>
 
         // devtools triggers action
         if (message.type === "ACTION") {
-          const actionCreators = options["actionCreators"]
-          if (actionCreators) {
+          if (typeof message.payload === "string") {
+            if (this.context.system.serialize) {
+              try {
+                const action = JSON.parse(message.payload)
+                this.context.system.eventStream.emit("**", action)
+              } catch {
+                throw TypeError("Action muse be plain object and should contain type and payload fields.")
+              }
+            }
+          } else {
+            const actionCreators = options["actionCreators"]
             const type = message.payload.name
             const payload = message.payload.args
             const selected = message.payload.selected
-            const selectedClass = Array.isArray(actionCreators) ? actionCreators[selected] : actionCreators[type]
-            const ractorAction = new selectedClass(...payload)
-            this.context.system.dispatch(ractorAction)
+            if (this.context.system.serialize) {
+              this.context.system.eventStream.emit("**", { type, payload })
+            } else {
+              const selectedClass = Array.isArray(actionCreators) ? actionCreators[selected] : actionCreators[type]
+              const ractorAction = new selectedClass(...payload)
+              this.context.system.dispatch(ractorAction)
+            }
           }
         }
 
@@ -78,21 +88,4 @@ export function createRemoteDevStore(options: { [key: string]: any }): new () =>
       return this.receiveBuilder().build()
     }
   }
-}
-
-function isPlainObject(obj: any) {
-  if (typeof obj !== 'object' || obj === null) return false
-
-  let proto = obj
-  while (Object.getPrototypeOf(proto) !== null) {
-    proto = Object.getPrototypeOf(proto)
-  }
-
-  return Object.getPrototypeOf(obj) === proto
-}
-
-function isClassAction(obj: any) {
-  if (typeof obj !== 'object' || obj === null) return false
-
-  return Object.getPrototypeOf(obj) !== Object.prototype
 }
